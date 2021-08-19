@@ -2,6 +2,25 @@ const grpc  = require("@grpc/grpc-js")
 const PROTO_PATH = "./news.proto"
 var protoLoader = require("@grpc/proto-loader")
 
+require('dotenv').config()
+const connectDB = require('./db')
+connectDB();
+
+const News = require('./news.model')
+
+
+
+// const {MongoClient} = require('mongodb');
+// // const client = new MongoClient(process.env.MONGO_URI);
+
+// MongoClient.connect( process.env.MONGO_URI,(err,client)=>{
+//     if(!err) {
+//         console.log("successful connection with the server");  
+//     }
+//     else
+//         console.log("Error in the connectivity");
+// })
+
 const options = {
     keepCase: true,
     longs: String,
@@ -14,10 +33,10 @@ var packageDefinition = protoLoader.loadSync(PROTO_PATH, options);
 const newsProto = grpc.loadPackageDefinition(packageDefinition);
 
 const server = new grpc.Server();
-let news = [
-  { id: "1", title: "Note 1", body: "Content 1", postImage: "Post image 1" },
-  { id: "2", title: "Note 2", body: "Content 2", postImage: "Post image 2" },
-];
+// let news = [
+//   { id: "1", title: "Note 1", body: "Content 1", postImage: "Post image 1" },
+//   { id: "2", title: "Note 2", body: "Content 2", postImage: "Post image 2" },
+// ];
 
 // server.addService(newsProto.NewsService.service, {
 //   getAllNews: (_, callback) => { callback(null, {news} ); },
@@ -29,36 +48,46 @@ let news = [
 // });
 
 server.addService(newsProto.NewsService.service, {
-  getAllNews: (_, callback) => {
+  getAllNews: async (_, callback) => {
+    const news = await News.find({})
+    console.log(news)
     callback(null, {news});
   },
-  getNews: (_, callback) => {
+  getNews: async (_, callback) => {
     const newsId = _.request.id;
-    const newsItem = news.find(({ id }) => newsId == id);
+    // const newsItem = news.find(({ id }) => newsId == id);
+    const newsItem =  await News.findById(newsId)
     callback(null, {newsItem});
   },
-  deleteNews: (_, callback) => {
+  deleteNews: async (_, callback) => {
     const newsId = _.request.id;
-    news = news.filter(({ id }) => id !== newsId);
+    // news = news.filter(({ id }) => id !== newsId);
+    const newsItem =  await News.findByIdAndDelete(newsId)
     callback(null, {});
   },
-  editNews: (_, callback) => {
+  editNews: async (_, callback) => {
     const newsId = _.request.id;
-    const newsItem = news.find(({ id }) => newsId == id);
-    newsItem.body = _.request.body;
-    newsItem.postImage = _.request.postImage;
-    newsItem.title = _.request.title;
+    // const newsItem = news.find(({ id }) => newsId == id);
+    // newsItem.body = _.request.body;
+    // newsItem.postImage = _.request.postImage;
+    // newsItem.title = _.request.title;
+
+    const newsItem = await News.findByIdAndUpdate(newsId, {title:_.request.title,body:_.request.body,postImage:_.request.postImage}, {new: true})
+
+
     callback(null, {newsItem});
   },
-  addNews: (call, callback) => {
+  addNews: async (call, callback) => {
     let _news = { id: Date.now(), ...call.request };
-    news.push(_news);
+    let val= await new News(_news)
+    val.save()
+    // news.push(_news);
     callback(null, {_news});
   },
 });
 
 server.bindAsync(
-  "127.0.0.1:50051",
+  process.env.PORT,
   grpc.ServerCredentials.createInsecure(),
   (error, port) => {
     console.log("Server running at http://127.0.0.1:50051");
